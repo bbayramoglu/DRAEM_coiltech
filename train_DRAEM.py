@@ -94,7 +94,7 @@ def train_on_device(obj_names, args):
 
 
                 n_iter +=1
-            print("Epoch: "+str(epoch) + "Loss - " +str(loss.item()))
+            print("Epoch: "+str(epoch) + " - Loss: " +str(loss.item()))
             scheduler.step()
 
             torch.save(model.state_dict(), os.path.join(args.checkpoint_path, run_name+".pckl"))
