@@ -50,14 +50,14 @@ def train_on_device(obj_names, args):
         loss_ssim = SSIM()
         loss_focal = FocalLoss()
 
-        dataset = MVTecDRAEMTrainDataset(args.data_path + obj_name + "/train/good/", args.anomaly_source_path, resize_shape=[256, 256])
+        dataset = MVTecDRAEMTrainDataset(os.path.join(args.data_path, obj_name, "train/good/"), args.anomaly_source_path, resize_shape=[256, 256])
 
         dataloader = DataLoader(dataset, batch_size=args.bs,
                                 shuffle=True, num_workers=16)
 
         n_iter = 0
         for epoch in range(args.epochs):
-            print("Epoch: "+str(epoch))
+            
             for i_batch, sample_batched in enumerate(dataloader):
                 gray_batch = sample_batched["image"].cuda()
                 aug_gray_batch = sample_batched["augmented_image"].cuda()
@@ -94,7 +94,7 @@ def train_on_device(obj_names, args):
 
 
                 n_iter +=1
-
+            print("Epoch: "+str(epoch) + "Loss - " +str(loss.item()))
             scheduler.step()
 
             torch.save(model.state_dict(), os.path.join(args.checkpoint_path, run_name+".pckl"))
