@@ -1,6 +1,8 @@
 *.pyc
 
-*.png
+
 *.jpg
 
 *.pt
+
+/checkpoints
