@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
+from model.model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
 import os
 import cv2
 import numpy as np

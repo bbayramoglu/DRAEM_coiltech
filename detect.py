@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
+from model.model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
 import os
 import cv2
 import numpy as np
@@ -20,8 +20,8 @@ def test_single_image(image_path, checkpoint_path, base_model_name, output_path,
     # Bu scriptte doğrudan tam model adını (uzantısız) 'base_model_name' olarak vermelisiniz.
     # Örn: DRAEM_test_0.0001_20_bs16_18.07_20-23defrom_
     
-    reconst_path = os.path.join(checkpoint_path, base_model_name + ".pckl")
-    seg_path = os.path.join(checkpoint_path, base_model_name + "_seg.pckl")
+    reconst_path = os.path.join(checkpoint_path, base_model_name + ".pt")
+    seg_path = os.path.join(checkpoint_path, base_model_name + "_seg.pt")
 
     if not os.path.exists(reconst_path):
         print(f"HATA: Reconstruction model dosyası bulunamadı: {reconst_path}")
@@ -159,5 +159,9 @@ if __name__ == "__main__":
 
     
     test_single_image(args.image_path, args.checkpoint_path, args.base_model_name, args.output_path, args.gpu_id)
-
-
+    
+"""
+python detect.py --image_path D:\Datasets\18.07_20-23defrom\test\punch\anomaly_00006.png \
+--base_model_name "DRAEM_test_0.0001_3_bs16_18.07_20-23defrom_" \
+--checkpoint_path .\checkpoints --gpu_id 0
+"""

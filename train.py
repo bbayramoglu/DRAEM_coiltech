@@ -1,10 +1,10 @@
 import torch
-from data_loader import MVTecDRAEMTrainDataset
+from utils.data_loader import MVTecDRAEMTrainDataset
 from torch.utils.data import DataLoader
 from torch import optim
-from tensorboard_visualizer import TensorboardVisualizer
-from model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
-from loss import FocalLoss, SSIM
+from utils.training_logger import TrainingLogger
+from model.model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
+from utils.loss import FocalLoss, SSIM
 import os
 
 def get_lr(optimizer):
@@ -30,8 +30,6 @@ def train_on_device(obj_names, args):
     for obj_name in obj_names:
         run_name = 'DRAEM_test_'+str(args.lr)+'_'+str(args.epochs)+'_bs'+str(args.bs)+"_"+obj_name+'_'
 
-        visualizer = TensorboardVisualizer(log_dir=os.path.join(args.log_path, run_name+"/"))
-
         model = ReconstructiveSubNetwork(in_channels=3, out_channels=3)
         model.cuda()
         model.apply(weights_init)
@@ -50,15 +48,23 @@ def train_on_device(obj_names, args):
         loss_ssim = SSIM()
         loss_focal = FocalLoss()
 
-        dataset = MVTecDRAEMTrainDataset(os.path.join(args.data_path, obj_name, "train/good/"), args.anomaly_source_path, resize_shape=[256, 256])
+        dataset = MVTecDRAEMTrainDataset(args.data_path, args.anomaly_source_path, resize_shape=[args.size,args.size])
 
         dataloader = DataLoader(dataset, batch_size=args.bs,
-                                shuffle=True, num_workers=16)
+                                shuffle=True, num_workers=0)
+
+        # Initialize Logger
+        logger = TrainingLogger()
+        loss_names = ['l2_loss', 'ssim_loss', 'seg_loss', 'total_loss']
+        logger.print_header(loss_names)
 
         n_iter = 0
         for epoch in range(args.epochs):
+            # print("Epoch: "+str(epoch)) # Handled by logger
             
-            for i_batch, sample_batched in enumerate(dataloader):
+            pbar = logger.create_progress_bar(dataloader, len(dataloader))
+            
+            for i_batch, sample_batched in pbar:
                 gray_batch = sample_batched["image"].cuda()
                 aug_gray_batch = sample_batched["augmented_image"].cuda()
                 anomaly_mask = sample_batched["anomaly_mask"].cuda()
@@ -79,26 +85,23 @@ def train_on_device(obj_names, args):
 
                 loss.backward()
                 optimizer.step()
-
-                if args.visualize and n_iter % 200 == 0:
-                    visualizer.plot_loss(l2_loss, n_iter, loss_name='l2_loss')
-                    visualizer.plot_loss(ssim_loss, n_iter, loss_name='ssim_loss')
-                    visualizer.plot_loss(segment_loss, n_iter, loss_name='segment_loss')
-                if args.visualize and n_iter % 400 == 0:
-                    t_mask = out_mask_sm[:, 1:, :, :]
-                    visualizer.visualize_image_batch(aug_gray_batch, n_iter, image_name='batch_augmented')
-                    visualizer.visualize_image_batch(gray_batch, n_iter, image_name='batch_recon_target')
-                    visualizer.visualize_image_batch(gray_rec, n_iter, image_name='batch_recon_out')
-                    visualizer.visualize_image_batch(anomaly_mask, n_iter, image_name='mask_target')
-                    visualizer.visualize_image_batch(t_mask, n_iter, image_name='mask_out')
-
-
+                
+                # Log batch
+                current_losses = [l2_loss.item(), ssim_loss.item(), segment_loss.item(), loss.item()]
+                logger.log_batch(epoch, args.epochs, current_losses, 
+                               targets_shape=(args.bs,), 
+                               imgs_shape=gray_batch.shape, 
+                               pbar=pbar, 
+                               batch_idx=i_batch)
                 n_iter +=1
-            print("Epoch: "+str(epoch) + " - Loss: " +str(loss.item()))
-            scheduler.step()
 
-            torch.save(model.state_dict(), os.path.join(args.checkpoint_path, run_name+".pckl"))
-            torch.save(model_seg.state_dict(), os.path.join(args.checkpoint_path, run_name+"_seg.pckl"))
+            scheduler.step()
+            
+            # Log epoch end
+            logger.log_epoch_end(epoch, [get_lr(optimizer)], current_losses, results=None)
+
+            torch.save(model.state_dict(), os.path.join(args.checkpoint_path, run_name+".pt"))
+            torch.save(model_seg.state_dict(), os.path.join(args.checkpoint_path, run_name+"_seg.pt"))
 
 
 if __name__=="__main__":
@@ -109,6 +112,7 @@ if __name__=="__main__":
     parser.add_argument('--bs', action='store', type=int, required=True)
     parser.add_argument('--lr', action='store', type=float, required=True)
     parser.add_argument('--epochs', action='store', type=int, required=True)
+    parser.add_argument('--size', action='store', type=int, required=True)
     parser.add_argument('--gpu_id', action='store', type=int, default=0, required=False)
     parser.add_argument('--data_path', action='store', type=str, required=True)
     parser.add_argument('--anomaly_source_path', action='store', type=str, required=True)
@@ -118,40 +122,11 @@ if __name__=="__main__":
 
     args = parser.parse_args()
 
-    obj_batch = [['capsule'],
-                 ['bottle'],
-                 ['carpet'],
-                 ['leather'],
-                 ['pill'],
-                 ['transistor'],
-                 ['tile'],
-                 ['cable'],
-                 ['zipper'],
-                 ['toothbrush'],
-                 ['metal_nut'],
-                 ['hazelnut'],
-                 ['screw'],
-                 ['grid'],
-                 ['wood']
+    obj_batch = [['18.07_20-23defrom']
                  ]
 
     if int(args.obj_id) == -1:
-        obj_list = ['capsule',
-                     'bottle',
-                     'carpet',
-                     'leather',
-                     'pill',
-                     'transistor',
-                     'tile',
-                     'cable',
-                     'zipper',
-                     'toothbrush',
-                     'metal_nut',
-                     'hazelnut',
-                     'screw',
-                     'grid',
-                     'wood'
-                     ]
+        obj_list = ['18.07_20-23defrom']
         picked_classes = obj_list
     else:
         picked_classes = obj_batch[int(args.obj_id)]
@@ -159,3 +134,12 @@ if __name__=="__main__":
     with torch.cuda.device(args.gpu_id):
         train_on_device(picked_classes, args)
 
+"""
+python train.py --gpu_id 0 --obj_id 0 \
+ --lr 0.0001 --size 256\
+ --bs 16 --epochs 30 \
+ --checkpoint_path "D:/Documents/DRAEM/checkpoints" \
+ --data_path D:\Datasets\18.07_20-23defrom\train\good \
+ --anomaly_source_path "D:/Datasets/dtd/images" \
+ --log_path "D:/Documents/DRAEM/logs" 
+"""
