@@ -1,7 +1,7 @@
 # DRAEM - Anomaly Detection for Industrial Inspection
 
 <p align="center">
-  <img src="./utils/media/single_test_result.png" alt="DRAEM Test Result" width="100%">
+  <img src="./utils/media/anomaly.png" alt="DRAEM Test Result" width="100%">
 </p>
 
 ## 📋 About
